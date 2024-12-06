@@ -1,0 +1,114 @@
+.js_mind_tools {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  height: 44px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  box-shadow: 0px 2px 10px 1px rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  z-index: 99;
+  .tools_item {
+    margin: 0 8px;
+    display: flex;
+    align-items: center;
+    .label {
+      padding-left: 4px;
+    }
+    /* 单独的图标按钮*/
+    .single_icon_btn {
+      width: 30px;
+      height: 30px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      &.active {
+        background: rgba(109, 105, 220, 0.12);
+        .iconfont {
+          color: var(--primary-color);
+        }
+      }
+    }
+    /* 层级按钮*/
+    &.change_btn {
+      .icon_box {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        &:hover {
+          .iconfont {
+            color: var(--primary-color);
+          }
+        }
+        &.disabled {
+          color: #bbb;
+          cursor: not-allowed;
+          &:hover {
+            .iconfont {
+              color: #bbb;
+            }
+          }
+        }
+        &.active {
+          background: rgba(109, 105, 220, 0.12);
+          border-radius: 6px 6px 6px 6px;
+          .iconfont {
+            color: var(--primary-color);
+          }
+        }
+      }
+      .select {
+        width: 60px;
+        height: 26px;
+        :deep(.lb-base-selection) {
+          .lb-base-selection__border,
+          .lb-base-selection__state-border {
+            display: none;
+          }
+          .lb-base-selection-label {
+            height: 26px;
+            background: #f3f3f4;
+            border-radius: 5px;
+            .lb-base-selection-input {
+              padding-left: 7px;
+              padding-right: 0px;
+              .lb-base-selection-input__content {
+                text-overflow: inherit;
+                font-size: 12px;
+                color: var(--text-color);
+              }
+            }
+          }
+          .lb-base-suffix {
+            right: 7px;
+          }
+          .select_arrow {
+            width: 12px;
+            height: 12px;
+            transform: translate(4px, 2px);
+            background: #f0f0f1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            .iconfont {
+              font-size: 12px;
+              line-height: 12px;
+            }
+          }
+        }
+      }
+    }
+  }
+  .split {
+    width: 1px;
+    height: 20px;
+    background: #eeeeee;
+  }
+}
