@@ -5,16 +5,15 @@
 	import { PaneGroup, Pane, PaneResizer } from 'paneforge';
 
 	import { getContext, onDestroy, onMount, tick } from 'svelte';
-	const i18n: Writable<i18nType> = getContext('i18n');
 
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 
 	import { get, type Unsubscriber, type Writable } from 'svelte/store';
-	import type { i18n as i18nType } from 'i18next';
-	import { WEBUI_BASE_URL } from '$lib/constants';
 
-	import { chatStore } from '$lib/stores/chatStore';
+	export let webuiBaseUrl = `http://${location.hostname}:8080`; // 配置项，基础后台地址
+
+	import { chatStore } from './chatStore';
 
 	import {
 		chatId,
@@ -38,7 +37,7 @@
 		chatTitle,
 		showArtifacts,
 		tools
-	} from '$lib/stores';
+	} from './stores';
 	import {
 		convertMessagesToHistory,
 		copyToClipboard,
@@ -46,9 +45,9 @@
 		extractSentencesForAudio,
 		promptTemplate,
 		splitStream
-	} from '$lib/utils';
+	} from './utils';
 
-	import { generateChatCompletion } from '$lib/apis/ollama';
+	import { generateChatCompletion } from './apis/ollama';
 	import {
 		addTagById,
 		createNewChat,
@@ -59,12 +58,12 @@
 		getChatList,
 		getTagsById,
 		updateChatById
-	} from '$lib/apis/chats';
-	import { generateOpenAIChatCompletion } from '$lib/apis/openai';
-	import { processWeb, processWebSearch, processYoutubeVideo } from '$lib/apis/retrieval';
-	import { createOpenAITextStream } from '$lib/apis/streaming';
-	import { queryMemory } from '$lib/apis/memories';
-	import { getAndUpdateUserLocation, getUserSettings } from '$lib/apis/users';
+	} from './apis/chats';
+	import { generateOpenAIChatCompletion } from './apis/openai';
+	import { processWeb, processWebSearch, processYoutubeVideo } from './apis/retrieval';
+	import { createOpenAITextStream } from './apis/streaming';
+	import { queryMemory } from './apis/memories';
+	import { getAndUpdateUserLocation, getUserSettings } from './apis/users';
 	import {
 		chatCompleted,
 		generateTitle,
@@ -72,18 +71,18 @@
 		chatAction,
 		generateMoACompletion,
 		generateTags
-	} from '$lib/apis';
+	} from './apis';
 
-	import Banner from '../common/Banner.svelte';
-	import MessageInput from '$lib/components/chat/MessageInput.svelte';
-	import Messages from '$lib/components/chat/Messages.svelte';
-	import Navbar from '$lib/components/layout/Navbar.svelte';
+	import Banner from './common/Banner.svelte';
+	import MessageInput from './MessageInput.svelte';
+	import Messages from './Messages.svelte';
+	import Navbar from './layout/Navbar.svelte';
 	import ChatControls from './ChatControls.svelte';
-	import EventConfirmDialog from '../common/ConfirmDialog.svelte';
+	import EventConfirmDialog from './common/ConfirmDialog.svelte';
 	import Placeholder from './Placeholder.svelte';
-	import { getTools } from '$lib/apis/tools';
-	import WebuiIframe from './webuiIframe.svelte';
-	import Chat2 from '../chat2/Chat.svelte';
+	import { getTools } from './apis/tools';
+
+	const g_chatId = $chatId;
 
 	export let chatIdProp = '';
 
@@ -180,7 +179,7 @@
 	};
 
 	const showMessage = async (message) => {
-		const _chatId = JSON.parse(JSON.stringify($chatId));
+		const _chatId = JSON.parse(JSON.stringify(g_chatId));
 		let _messageId = JSON.parse(JSON.stringify(message.id));
 
 		let messageChildrenIds = history.messages[_messageId].childrenIds;
@@ -206,7 +205,7 @@
 	};
 
 	const chatEventHandler = async (event, cb) => {
-		if (event.chat_id === $chatId) {
+		if (event.chat_id === g_chatId) {
 			await tick();
 			console.log(event);
 			let message = history.messages[event.message_id];
@@ -342,7 +341,7 @@
 		window.addEventListener('message', onMessageHandler);
 		$socket?.on('chat-events', chatEventHandler);
 
-		if (!$chatId) {
+		if (!g_chatId) {
 			chatIdUnsubscriber = chatId.subscribe(async (value) => {
 				if (!value) {
 					await initNewChat();
@@ -596,13 +595,13 @@
 
 	const loadChat = async () => {
 		chatId.set(chatIdProp);
-		chat = await getChatById(localStorage.token, $chatId).catch(async (error) => {
+		chat = await getChatById(localStorage.token, g_chatId).catch(async (error) => {
 			await goto('/');
 			return null;
 		});
 
 		if (chat) {
-			tags = await getTagsById(localStorage.token, $chatId).catch(async (error) => {
+			tags = await getTagsById(localStorage.token, g_chatId).catch(async (error) => {
 				return [];
 			});
 
@@ -708,7 +707,7 @@
 
 		await tick();
 
-		if ($chatId == chatId) {
+		if (g_chatId == chatId) {
 			if (!$temporaryChatEnabled) {
 				chat = await updateChatById(localStorage.token, chatId, {
 					models: selectedModels,
@@ -760,7 +759,7 @@
 			}
 		}
 
-		if ($chatId == chatId) {
+		if (g_chatId == chatId) {
 			if (!$temporaryChatEnabled) {
 				chat = await updateChatById(localStorage.token, chatId, {
 					models: selectedModels,
@@ -789,7 +788,7 @@
 	const createMessagePair = async (userPrompt) => {
 		prompt = '';
 		if (selectedModels.length === 0) {
-			toast.error($i18n.t('Model not selected'));
+			toast.error('未选择模型');
 		} else {
 			const modelId = selectedModels[0];
 			const model = $models.filter((m) => m.id === modelId).at(0);
@@ -841,7 +840,7 @@
 			if (messages.length === 0) {
 				await initChatHandler();
 			} else {
-				await saveChatHandler($chatId);
+				await saveChatHandler(g_chatId);
 			}
 		}
 	};
@@ -851,7 +850,7 @@
 	//////////////////////////
 
 	const submitPrompt = async (userPrompt, { _raw = false } = {}) => {
-		console.log('submitPrompt', userPrompt, $chatId);
+		console.log('submitPrompt', userPrompt, g_chatId);
 
 		const messages = createMessagesList(history.currentId);
 		const _selectedModels = selectedModels.map((modelId) =>
@@ -862,11 +861,11 @@
 		}
 
 		if (userPrompt === '') {
-			toast.error($i18n.t('Please enter a prompt'));
+			toast.error('请输入提示');
 			return;
 		}
 		if (selectedModels.includes('')) {
-			toast.error($i18n.t('Model not selected'));
+			toast.error('未选择模型');
 			return;
 		}
 
@@ -876,27 +875,21 @@
 		}
 		if (messages.length != 0 && messages.at(-1).error) {
 			// Error in response
-			toast.error($i18n.t(`Oops! There was an error in the previous response.`));
+			toast.error('上一次响应中出现错误');
 			return;
 		}
 		if (
 			files.length > 0 &&
 			files.filter((file) => file.type !== 'image' && file.status === 'uploading').length > 0
 		) {
-			toast.error(
-				$i18n.t(`Oops! There are files still uploading. Please wait for the upload to complete.`)
-			);
+			toast.error('仍有文件正在上传，请等待上传完成');
 			return;
 		}
 		if (
 			($config?.file?.max_count ?? null) !== null &&
 			files.length + chatFiles.length > $config?.file?.max_count
 		) {
-			toast.error(
-				$i18n.t(`You can only chat with a maximum of {{maxCount}} file(s) at a time.`, {
-					maxCount: $config?.file?.max_count
-				})
-			);
+			toast.error('每次对话最多仅能附上 ' + $config?.file?.max_count + ' 个文件');
 			return;
 		}
 
@@ -1016,7 +1009,7 @@
 		}
 		await tick();
 
-		const _chatId = JSON.parse(JSON.stringify($chatId));
+		const _chatId = JSON.parse(JSON.stringify(g_chatId));
 		await Promise.all(
 			selectedModelIds.map(async (modelId, _modelIdx) => {
 				console.log('modelId', modelId);
@@ -1030,11 +1023,7 @@
 					);
 
 					if (hasImages && !(model.info?.meta?.capabilities?.vision ?? true)) {
-						toast.error(
-							$i18n.t('Model {{modelName}} is not vision capable', {
-								modelName: model.name ?? model.id
-							})
-						);
+						toast.error(model.name ?? model.id + ' 不支持视觉');
 					}
 
 					let responseMessageId =
@@ -1082,7 +1071,7 @@
 
 					if (chatEventEmitter) clearInterval(chatEventEmitter);
 				} else {
-					toast.error($i18n.t(`Model {{modelId}} not found`, { modelId }));
+					toast.error('未找到模型 ' + modelId);
 				}
 			})
 		);
@@ -1166,9 +1155,7 @@
 			responseMessage.statusHistory = [
 				{
 					action: 'knowledge_search',
-					description: $i18n.t(`Searching Knowledge for "{{searchQuery}}"`, {
-						searchQuery: userMessage.content
-					}),
+					description: '检索有关 "' + userMessage.content + '" 的知识中',
 					done: false
 				}
 			];
@@ -1245,7 +1232,7 @@
 			tool_ids: selectedToolIds.length > 0 ? selectedToolIds : undefined,
 			files: files.length > 0 ? files : undefined,
 			session_id: $socket?.id,
-			chat_id: $chatId,
+			chat_id: g_chatId,
 			id: responseMessageId
 		});
 
@@ -1274,7 +1261,7 @@
 
 				while (true) {
 					const { value, done } = await reader.read();
-					if (done || stopResponseFlag || _chatId !== $chatId) {
+					if (done || stopResponseFlag || _chatId !== g_chatId) {
 						responseMessage.done = true;
 						history.messages[responseMessageId] = responseMessage;
 
@@ -1351,7 +1338,7 @@
 									if (responseMessage.content == '') {
 										responseMessage.error = {
 											code: 400,
-											content: `Oops! No text generated from Ollama, Please try again.`
+											content: 'Oops! No text generated from Ollama, Please try again.'
 										};
 									}
 
@@ -1370,9 +1357,9 @@
 									history.messages[responseMessageId] = responseMessage;
 
 									if ($settings.notificationEnabled && !document.hasFocus()) {
-										const notification = new Notification(`${model.id}`, {
+										const notification = new Notification(model.id, {
 											body: responseMessage.content,
-											icon: `${WEBUI_BASE_URL}/static/favicon.png`
+											icon: `${webuiBaseUrl}/static/favicon.png`
 										});
 									}
 
@@ -1412,13 +1399,9 @@
 					responseMessage.error = { content: error.error };
 				}
 			} else {
-				toast.error(
-					$i18n.t(`Uh-oh! There was an issue connecting to {{provider}}.`, { provider: 'Ollama' })
-				);
+				toast.error('糟糕！连接到 Ollama 时出现问题。');
 				responseMessage.error = {
-					content: $i18n.t(`Uh-oh! There was an issue connecting to {{provider}}.`, {
-						provider: 'Ollama'
-					})
+					content: '糟糕！连接到 Ollama 时出现问题。'
 				};
 			}
 			responseMessage.done = true;
@@ -1496,9 +1479,7 @@
 			responseMessage.statusHistory = [
 				{
 					action: 'knowledge_search',
-					description: $i18n.t(`Searching Knowledge for "{{searchQuery}}"`, {
-						searchQuery: userMessage.content
-					}),
+					description: '检索有关 "' + userMessage.content + '" 的知识中',
 					done: false
 				}
 			];
@@ -1625,10 +1606,10 @@
 					tool_ids: selectedToolIds.length > 0 ? selectedToolIds : undefined,
 					files: files.length > 0 ? files : undefined,
 					session_id: $socket?.id,
-					chat_id: $chatId,
+					chat_id: g_chatId,
 					id: responseMessageId
 				},
-				`${WEBUI_BASE_URL}/api`
+				`${webuiBaseUrl}/api`
 			);
 
 			// Wait until history/message have been updated
@@ -1653,7 +1634,7 @@
 							await handleOpenAIError(error, null, model, responseMessage);
 							break;
 						}
-						if (done || stopResponseFlag || _chatId !== $chatId) {
+						if (done || stopResponseFlag || _chatId !== g_chatId) {
 							responseMessage.done = true;
 							history.messages[responseMessageId] = responseMessage;
 
@@ -1726,9 +1707,9 @@
 				}
 
 				if ($settings.notificationEnabled && !document.hasFocus()) {
-					const notification = new Notification(`${model.id}`, {
+					const notification = new Notification(model.id, {
 						body: responseMessage.content,
-						icon: `${WEBUI_BASE_URL}/static/favicon.png`
+						icon: `${webuiBaseUrl}/static/favicon.png`
 					});
 				}
 
@@ -1830,12 +1811,7 @@
 		}
 
 		responseMessage.error = {
-			content:
-				$i18n.t(`Uh-oh! There was an issue connecting to {{provider}}.`, {
-					provider: model.name ?? model.id
-				}) +
-				'\n' +
-				errorMessage
+			content: '糟糕！连接到 ' + (model.name ?? model.id) + ' 时出现问题。\n' + errorMessage
 		};
 		responseMessage.done = true;
 
@@ -1903,7 +1879,7 @@
 
 	const continueResponse = async () => {
 		console.log('continueResponse');
-		const _chatId = JSON.parse(JSON.stringify($chatId));
+		const _chatId = JSON.parse(JSON.stringify(g_chatId));
 
 		if (history.currentId && history.messages[history.currentId].done == true) {
 			const responseMessage = history.messages[history.currentId];
@@ -1986,21 +1962,21 @@
 		if ($settings?.title?.auto ?? true) {
 			const modelId = selectedModels[0];
 
-			const title = await generateTitle(localStorage.token, modelId, messages, $chatId).catch(
+			const title = await generateTitle(localStorage.token, modelId, messages, g_chatId).catch(
 				(error) => {
 					console.error(error);
-					return lastUserMessage?.content ?? 'New Chat';
+					return lastUserMessage?.content ?? '新对话';
 				}
 			);
 
-			return title ? title : (lastUserMessage?.content ?? 'New Chat');
+			return title ? title : (lastUserMessage?.content ?? '新对话');
 		} else {
-			return lastUserMessage?.content ?? 'New Chat';
+			return lastUserMessage?.content ?? '新对话';
 		}
 	};
 
 	const setChatTitle = async (_chatId, title) => {
-		if (_chatId === $chatId) {
+		if (_chatId === g_chatId) {
 			chatTitle.set(title);
 		}
 
@@ -2014,9 +1990,9 @@
 
 	const setChatTags = async (messages) => {
 		if (!$temporaryChatEnabled) {
-			const currentTags = await getTagsById(localStorage.token, $chatId);
+			const currentTags = await getTagsById(localStorage.token, g_chatId);
 			if (currentTags.length > 0) {
-				const res = await deleteTagsById(localStorage.token, $chatId);
+				const res = await deleteTagsById(localStorage.token, g_chatId);
 				if (res) {
 					allTags.set(await getAllTags(localStorage.token));
 				}
@@ -2025,7 +2001,7 @@
 			const lastMessage = messages.at(-1);
 			const modelId = selectedModels[0];
 
-			let generatedTags = await generateTags(localStorage.token, modelId, messages, $chatId).catch(
+			let generatedTags = await generateTags(localStorage.token, modelId, messages, g_chatId).catch(
 				(error) => {
 					console.error(error);
 					return [];
@@ -2038,10 +2014,10 @@
 			console.log(generatedTags);
 
 			for (const tag of generatedTags) {
-				await addTagById(localStorage.token, $chatId, tag);
+				await addTagById(localStorage.token, g_chatId, tag);
 			}
 
-			chat = await getChatById(localStorage.token, $chatId);
+			chat = await getChatById(localStorage.token, g_chatId);
 			allTags.set(await getAllTags(localStorage.token));
 		}
 	};
@@ -2060,7 +2036,7 @@
 			{
 				done: false,
 				action: 'web_search',
-				description: $i18n.t('Generating search query')
+				description: '生成搜索查询'
 			}
 		];
 		history.messages[responseMessageId] = responseMessage;
@@ -2081,7 +2057,7 @@
 				done: true,
 				error: true,
 				action: 'web_search',
-				description: $i18n.t('No search query generated')
+				description: '未生成搜索查询'
 			});
 			history.messages[responseMessageId] = responseMessage;
 			return;
@@ -2092,7 +2068,7 @@
 		responseMessage.statusHistory.push({
 			done: false,
 			action: 'web_search',
-			description: $i18n.t(`Searching "{{searchQuery}}"`, { searchQuery })
+			description: '搜索 "' + searchQuery + '"'
 		});
 		history.messages[responseMessageId] = responseMessage;
 
@@ -2107,7 +2083,7 @@
 			responseMessage.statusHistory.push({
 				done: true,
 				action: 'web_search',
-				description: $i18n.t('Searched {{count}} sites', { count: results.filenames.length }),
+				description: '搜索了 ' + results.filenames.length + ' 个网站',
 				query: searchQuery,
 				urls: results.filenames
 			});
@@ -2128,7 +2104,7 @@
 				done: true,
 				error: true,
 				action: 'web_search',
-				description: 'No search results found'
+				description: '未找到搜索结果'
 			});
 			history.messages[responseMessageId] = responseMessage;
 		}
@@ -2137,8 +2113,8 @@
 	const initChatHandler = async () => {
 		if (!$temporaryChatEnabled) {
 			chat = await createNewChat(localStorage.token, {
-				id: $chatId,
-				title: $i18n.t('New Chat'),
+				id: g_chatId,
+				title: '新对话',
 				models: selectedModels,
 				system: $settings.system ?? undefined,
 				params: params,
@@ -2158,7 +2134,7 @@
 	};
 
 	const saveChatHandler = async (_chatId) => {
-		if ($chatId == _chatId) {
+		if (g_chatId == _chatId) {
 			if (!$temporaryChatEnabled) {
 				chat = await updateChatById(localStorage.token, _chatId, {
 					models: selectedModels,
@@ -2227,7 +2203,7 @@
 		<Navbar
 			bind:this={navbarElement}
 			chat={{
-				id: $chatId,
+				id: g_chatId,
 				chat: {
 					title: $chatTitle,
 					models: selectedModels,
@@ -2245,11 +2221,8 @@
 
 		<PaneGroup direction="horizontal" class="w-full h-full">
 			<Pane defaultSize={50} class="h-full w-full relative">
-				<div class="flex w-full relative" style="height:50%; overflow: hidden;">
-					<Chat2 chatIdProp={$page.params.id} />
-				</div>
-				<div class="flex w-full relative" style="height:50%;">
-					{#if $banners.length > 0 && !history.currentId && !$chatId && selectedModels.length <= 1}
+				<div class="flex h-full w-full relative">
+					{#if $banners.length > 0 && !history.currentId && !g_chatId && selectedModels.length <= 1}
 						<div class="absolute top-12 left-0 right-0 w-full z-30">
 							<div class=" flex flex-col gap-1 w-full">
 								{#each $banners.filter( (b) => (b.dismissible ? !JSON.parse(localStorage.getItem('dismissedBannerIds') ?? '[]').includes(b.id) : true) ) as banner}
@@ -2288,7 +2261,7 @@
 							>
 								<div class=" h-full w-full flex flex-col">
 									<Messages
-										chatId={$chatId}
+										chatId={g_chatId}
 										bind:history
 										bind:autoScroll
 										bind:prompt
@@ -2341,9 +2314,7 @@
 
 								<div
 									class="absolute bottom-1 text-xs text-gray-500 text-center line-clamp-1 right-0 left-0"
-								>
-									<!-- {$i18n.t('LLMs can make mistakes. Verify important information.')} -->
-								</div>
+								></div>
 							</div>
 						{:else}
 							<div class="overflow-auto w-full h-full flex items-center">
@@ -2392,7 +2363,7 @@
 				bind:params
 				bind:files
 				bind:pane={controlPane}
-				chatId={$chatId}
+				chatId={g_chatId}
 				modelId={selectedModelIds?.at(0) ?? null}
 				models={selectedModelIds.reduce((a, e, i, arr) => {
 					const model = $models.find((m) => m.id === e);
